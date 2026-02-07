@@ -1,68 +1,113 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.0;
 
-// Импорт твоего файла с токенами
-import "./DurakToken.sol";
+// 1. Интерфейсы (твои, для токенов)
+interface IDurakChips {
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+}
+
+interface IDurakXP {
+    function mintReward(address to, uint256 amount) external;
+}
 
 contract DurakLobby {
-    // Ссылки на твои контракты токенов
-    DurakChips public chipsToken;
-    DurakXP public xpToken;
+    // 2. Ссылки на контракты токенов
+    IDurakChips public chipsToken;
+    IDurakXP public xpToken;
+    
+    address public owner; // Адрес сервера или админа, который сообщает о конце игры
 
-    struct Game {
-        address creator;
-        uint256 betAmount;
+    struct GameTable {
+        uint256 id;
+        string name;
+        uint256 entryFee; // Ставка
         address[] players;
         bool isActive;
-        bool finalized;
+        uint256 totalPot; // Общий банк стола
     }
 
-    uint256 public gameCount;
-    mapping(uint256 => Game) public games;
+    GameTable[] public tables;
+    
+    // События для фронтенда
+    event TableCreated(uint256 tableId, string name, uint256 entryFee, address creator);
+    event PlayerJoined(uint256 tableId, address player);
+    event GameFinished(uint256 tableId, address winner, uint256 potWon);
 
-    // Конструктор принимает адреса УЖЕ созданных токенов
-    constructor(address _chipsAddr, address _xpAddr) {
-        chipsToken = DurakChips(_chipsAddr);
-        xpToken = DurakXP(_xpAddr);
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this");
+        _;
     }
 
-    // Создание стола со ставкой в фишках DRC
-    function createTable(uint256 _bet) external {
-        // Игрок должен сначала вызвать approve в контракте фишек
-        chipsToken.transferFrom(msg.sender, address(this), _bet);
-
-        gameCount++;
-        Game storage newGame = games[gameCount];
-        newGame.creator = msg.sender;
-        newGame.betAmount = _bet;
-        newGame.players.push(msg.sender);
-        newGame.isActive = true;
+    // 3. В конструкторе инициализируем адреса токенов
+    constructor(address _chipsTokenAddress, address _xpTokenAddress) {
+        owner = msg.sender;
+        chipsToken = IDurakChips(_chipsTokenAddress);
+        xpToken = IDurakXP(_xpTokenAddress);
     }
 
-    // Присоединиться к игре
-    function joinTable(uint256 _id) external {
-        Game storage game = games[_id];
-        require(game.isActive, "Game not active");
-        
-        chipsToken.transferFrom(msg.sender, address(this), game.betAmount);
-        game.players.push(msg.sender);
+    // Создание стола (игрок платит фишки)
+    function createTable(string memory _name, uint256 _entryFee) external {
+        require(_entryFee > 0, "Fee must be > 0");
+
+        // Забираем ставку у создателя
+        require(chipsToken.transferFrom(msg.sender, address(this), _entryFee), "Transfer failed");
+
+        address[] memory initialPlayers = new address[](1);
+        initialPlayers[0] = msg.sender;
+
+        tables.push(GameTable({
+            id: tables.length,
+            name: _name,
+            entryFee: _entryFee,
+            players: initialPlayers,
+            isActive: true,
+            totalPot: _entryFee
+        }));
+
+        emit TableCreated(tables.length - 1, _name, _entryFee, msg.sender);
     }
 
-    // Завершить игру: выплата победителю и МИНТИНГ ОПЫТА (Requirement 3.3)
-    function finishGame(uint256 _id, address _winner) external {
-        Game storage game = games[_id];
-        require(game.isActive && !game.finalized, "Game already over");
-        
-        game.finalized = true;
-        game.isActive = false;
+    // Присоединение к столу
+    function joinTable(uint256 _tableId) external {
+        GameTable storage table = tables[_tableId];
+        require(table.isActive, "Game not active");
+        require(table.players.length < 6, "Table full"); // Максимум 6 игроков в Дураке
 
-        // 1. Выплата банка победителю
-        uint256 totalPot = game.betAmount * game.players.length;
-        chipsToken.transfer(_winner, totalPot);
+        // Забираем ставку у присоединившегося
+        require(chipsToken.transferFrom(msg.sender, address(this), table.entryFee), "Transfer failed");
 
-        // 2. Автоматический минтинг наградных токенов XP для всех (Task 2)
-        for (uint i = 0; i < game.players.length; i++) {
-            xpToken.mintReward(game.players[i], 10 * 10**18); // 10 DXP каждому
+        table.players.push(msg.sender);
+        table.totalPot += table.entryFee; // Увеличиваем банк
+
+        emit PlayerJoined(_tableId, msg.sender);
+    }
+
+    // 4. ТВОЯ НОВАЯ ФУНКЦИЯ (Внедрена сюда)
+    // Вызывать её должен только сервер (owner), когда игра закончилась
+    function finishGame(uint256 _tableId, address _winner) external onlyOwner {
+        GameTable storage table = tables[_tableId];
+        require(table.isActive, "Game already finished");
+
+        table.isActive = false; // Закрываем стол
+
+        // 1. Отдаем весь банк победителю
+        if (table.totalPot > 0) {
+            chipsToken.transfer(_winner, table.totalPot);
         }
+
+        // 2. Раздаем XP ВСЕМ игрокам за столом
+        for (uint i = 0; i < table.players.length; i++) {
+            // Каждому даем по 10 XP (как в твоем примере)
+            // Можно добавить логику: победителю больше, проигравшим меньше
+            xpToken.mintReward(table.players[i], 10 * 10**18); 
+        }
+
+        emit GameFinished(_tableId, _winner, table.totalPot);
+    }
+
+    // Вспомогательная функция, чтобы видеть игроков за столом
+    function getPlayers(uint256 _tableId) external view returns (address[] memory) {
+        return tables[_tableId].players;
     }
 }
