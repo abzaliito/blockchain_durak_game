@@ -122,9 +122,18 @@ export function Web3Provider({ children }) {
               method: 'wallet_addEthereumChain',
               params: [{
                 chainId: '0x' + CHAIN_ID.toString(16),
-                chainName: 'Hardhat Local',
-                nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                rpcUrls: ['http://127.0.0.1:8545'],
+                chainName: CHAIN_ID === 11155111 ? 'Sepolia' : (CHAIN_ID === 80002 ? 'Amoy' : 'Hardhat Local'),
+                nativeCurrency: {
+                  name: CHAIN_ID === 80002 ? 'MATIC' : 'ETH',
+                  symbol: CHAIN_ID === 80002 ? 'MATIC' : 'ETH',
+                  decimals: 18
+                },
+                rpcUrls: CHAIN_ID === 11155111
+                  ? ['https://rpc.sepolia.org']
+                  : (CHAIN_ID === 80002 ? ['https://rpc-amoy.polygon.technology/'] : ['http://127.0.0.1:8545']),
+                blockExplorerUrls: CHAIN_ID === 11155111
+                  ? ['https://sepolia.etherscan.io']
+                  : (CHAIN_ID === 80002 ? ['https://www.oklink.com/amoy'] : null)
               }],
             });
           }
