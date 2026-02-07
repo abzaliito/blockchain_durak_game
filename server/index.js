@@ -5,6 +5,7 @@ const cors = require('cors');
 
 const config = require('./config');
 const { setupSocketHandlers } = require('./controllers/socketController');
+const blockchainService = require('./services/BlockchainService');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +26,7 @@ app.get('/health', (req, res) => {
 
 setupSocketHandlers(io);
 
-server.listen(config.PORT, () => {
+server.listen(config.PORT, async () => {
   console.log(`Server running on port ${config.PORT}`);
+  await blockchainService.initialize();
 });
