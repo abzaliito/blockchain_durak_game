@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Durak DApp</title>
+</head>
+<body>
+
+  <h2>Durak DApp</h2>
+  <button id="connectBtn">Connect Wallet</button>
+  <p>Wallet: <span id="walletAddress">Not connected</span></p>
+
+  <div class="user-stats">
+      <div class="stat-item">
+          <span>💰 Фишки (DRC):</span>
+          <strong id="chips-balance">0</strong>
+      </div>
+      <div class="stat-item">
+          <span>⭐ Опыт (XP):</span>
+          <strong id="xp-balance">0</strong>
+      </div>
+      <div class="stat-item">
+          <span>⛽ Газ (ETH):</span>
+          <strong id="eth-balance">0</strong>
+      </div>
+  </div>
+
+  <hr />
+  <button id="startGameBtn">Start Game (0.01 ETH)</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+
+  <script src="main.js"></script>
+
+</body>
+</html>
