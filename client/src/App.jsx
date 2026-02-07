@@ -1,4 +1,5 @@
 import { SocketProvider, useSocket } from './context/SocketContext';
+import { Web3Provider } from './context/Web3Context';
 import Connect from './components/Connect/Connect';
 import Lobby from './components/Lobby/Lobby';
 import GameBoard from './components/Game/GameBoard';
@@ -27,15 +28,17 @@ function LoadingScreen() {
 }
 
 function AppContent() {
-  const { isConnected, currentTable, socket } = useSocket();
+  const { isConnected: isSocketConnected, currentTable, socket } = useSocket();
 
   const hasSession = localStorage.getItem('durak_session');
   
-  if (!isConnected && hasSession && socket === null) {
+  // Show loading if trying to reconnect
+  if (!isSocketConnected && hasSession && socket === null) {
     return <LoadingScreen />;
   }
 
-  if (!isConnected) {
+  // Show Connect screen if not connected to socket
+  if (!isSocketConnected) {
     return <Connect />;
   }
 
@@ -63,10 +66,12 @@ function BackgroundSuits() {
 
 function App() {
   return (
-    <SocketProvider>
-      <BackgroundSuits />
-      <AppContent />
-    </SocketProvider>
+    <Web3Provider>
+      <SocketProvider>
+        <BackgroundSuits />
+        <AppContent />
+      </SocketProvider>
+    </Web3Provider>
   );
 }
 

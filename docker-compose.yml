@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        CHIPS_ADDRESS: ${CHIPS_ADDRESS}
+        XP_ADDRESS: ${XP_ADDRESS}
+        LOBBY_ADDRESS: ${LOBBY_ADDRESS}
+        RPC_URL: ${RPC_URL}
+        CHAIN_ID: ${CHAIN_ID}
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped

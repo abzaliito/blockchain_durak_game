@@ -1,0 +1,10 @@
+node_modules
+client/node_modules
+client/dist
+.git
+.env.local
+*.log
+.DS_Store
+artifacts
+cache
+coverage

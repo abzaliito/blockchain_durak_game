@@ -1,19 +1,67 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSocket } from '../../context/SocketContext';
+import { useWeb3 } from '../../context/Web3Context';
 import styles from './Connect.module.css';
 
 export default function Connect() {
-  const { connect, isConnected } = useSocket();
-  const [wallet, setWallet] = useState('');
+  const { connect } = useSocket();
+  const { 
+    address, 
+    isConnected, 
+    isConnecting, 
+    error, 
+    connectWallet, 
+    claimFreeChips,
+    chipsBalance,
+    xpBalance,
+    hasClaimed,
+    clearError,
+    isMetaMaskAvailable 
+  } = useWeb3();
+  
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimSuccess, setClaimSuccess] = useState(false);
 
-  const handleConnect = () => {
-    const address = wallet.trim() || `0x${Math.random().toString(16).slice(2, 42)}`;
-    connect(address);
+  // Auto-claim chips when connected and not yet claimed
+  useEffect(() => {
+    const autoClaim = async () => {
+      if (isConnected && !hasClaimed && !isClaiming && chipsBalance === '0') {
+        setIsClaiming(true);
+        const success = await claimFreeChips();
+        if (success) {
+          setClaimSuccess(true);
+        }
+        setIsClaiming(false);
+      }
+    };
+    
+    autoClaim();
+  }, [isConnected, hasClaimed, chipsBalance, claimFreeChips, isClaiming]);
+
+  const handleConnect = async () => {
+    clearError();
+    const walletAddress = await connectWallet();
+    if (walletAddress) {
+      // Connection successful, chips will be claimed automatically
+    }
   };
 
-  const generateRandomWallet = () => {
-    setWallet(`0x${Math.random().toString(16).slice(2, 42)}`);
+  const handleEnterGame = () => {
+    if (address) {
+      connect(address);
+    }
+  };
+
+  const formatAddress = (addr) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const formatBalance = (balance) => {
+    const num = parseFloat(balance);
+    if (num === 0) return '0';
+    return num.toFixed(0);
   };
 
   return (
@@ -39,42 +87,88 @@ export default function Connect() {
           </div>
           <div className={styles.feature}>
             <span className={styles.featureIcon}>💎</span>
-            <span>ETH Stakes</span>
+            <span>100 Free Chips</span>
           </div>
         </div>
 
-        <div className={styles.form}>
-          <div className={styles.inputGroup}>
-            <input
-              type="text"
-              value={wallet}
-              onChange={(e) => setWallet(e.target.value)}
-              placeholder="Enter wallet address or leave empty"
-              className={styles.input}
-            />
-            <button 
-              type="button" 
-              className={styles.randomBtn}
-              onClick={generateRandomWallet}
-              title="Generate random"
-            >
-              🎲
-            </button>
+        {error && (
+          <div className={styles.error}>
+            {error}
           </div>
+        )}
 
-          <motion.button
-            className={styles.connectBtn}
-            onClick={handleConnect}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+        {claimSuccess && (
+          <motion.div 
+            className={styles.success}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
           >
-            Enter Game
-          </motion.button>
-        </div>
+            🎉 100 DRC credited to your wallet!
+          </motion.div>
+        )}
 
-        <p className={styles.hint}>
-          For testing, you can use any address or generate random
-        </p>
+        {!isConnected ? (
+          <div className={styles.form}>
+            <motion.button
+              className={styles.connectBtn}
+              onClick={handleConnect}
+              disabled={isConnecting}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isConnecting ? (
+                <span className={styles.loading}>Connecting...</span>
+              ) : (
+                <>
+                  <span className={styles.metamaskIcon}>🦊</span>
+                  Connect MetaMask
+                </>
+              )}
+            </motion.button>
+
+            {!isMetaMaskAvailable && (
+              <p className={styles.hint}>
+                MetaMask not detected. Install the extension or open in MetaMask mobile browser.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className={styles.walletInfo}>
+            <div className={styles.addressBox}>
+              <span className={styles.addressLabel}>Connected</span>
+              <span className={styles.address}>{formatAddress(address)}</span>
+            </div>
+
+            <div className={styles.balances}>
+              <div className={styles.balanceItem}>
+                <span className={styles.balanceIcon}>💰</span>
+                <span className={styles.balanceValue}>{formatBalance(chipsBalance)}</span>
+                <span className={styles.balanceLabel}>DRC</span>
+              </div>
+              <div className={styles.balanceItem}>
+                <span className={styles.balanceIcon}>⭐</span>
+                <span className={styles.balanceValue}>{formatBalance(xpBalance)}</span>
+                <span className={styles.balanceLabel}>XP</span>
+              </div>
+            </div>
+
+            {isClaiming && (
+              <div className={styles.claiming}>
+                Claiming free chips...
+              </div>
+            )}
+
+            <motion.button
+              className={styles.enterBtn}
+              onClick={handleEnterGame}
+              disabled={isClaiming || parseFloat(chipsBalance) === 0}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isClaiming ? 'Getting chips...' : 'Enter Game'}
+            </motion.button>
+          </div>
+        )}
       </motion.div>
 
       <div className={styles.background}>

@@ -3,6 +3,70 @@
   padding: 40px;
 }
 
+.walletBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 12px 24px;
+  background: var(--bg-secondary);
+  border-radius: 50px;
+  border: 1px solid var(--border);
+  max-width: 700px;
+  margin: 0 auto 30px;
+  flex-wrap: wrap;
+}
+
+.walletAddress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: monospace;
+  color: var(--text-secondary);
+}
+
+.walletIcon {
+  font-size: 1.2rem;
+}
+
+.walletBalances {
+  display: flex;
+  gap: 20px;
+}
+
+.walletBalance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.balanceNum {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.balanceLabel {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.disconnectBtn {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.disconnectBtn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
 .header {
   text-align: center;
   margin-bottom: 50px;
