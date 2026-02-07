@@ -1,8 +1,8 @@
 export const CONTRACTS = {
-  CHIPS: "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8",
-  XP: "0x851356ae760d987E095750cCeb3bC6014560891C",
-  LOBBY: "0xf5059a5D33d5853360D16C683c16e67980206f36"
+  CHIPS: __CHIPS_ADDRESS__,
+  XP: __XP_ADDRESS__,
+  LOBBY: __LOBBY_ADDRESS__
 };
 
-export const CHAIN_ID = 31337;
-export const RPC_URL = "http://127.0.0.1:8545";
+export const CHAIN_ID = Number(__CHAIN_ID__) || 31337;
+export const RPC_URL = __RPC_URL__ || "http://127.0.0.1:8545";

@@ -48,11 +48,9 @@ export function SocketProvider({ children }) {
   }, []);
 
   const connect = useCallback((wallet) => {
-    // Dynamically connect to the server on the same hostname
-    // Assuming backend runs on port 3001
-    const serverUrl = `http://${window.location.hostname}:3001`;
+    const serverUrl = __SERVER_URL__ || 'http://localhost:3001';
     const newSocket = io(serverUrl);
-
+    
     newSocket.on('connect', () => {
       setIsConnected(true);
       addLog('Connected to server', 'success');
