@@ -13,7 +13,7 @@ async function main() {
 
   // 2. XP Token (Separated!)
   const XPFactory = await hre.ethers.getContractFactory("DurakXP");
-  const xpToken = await XPFactory.deploy();
+  const xpToken = await XPFactory.deploy(); // Add gasLimit if needed, but usually estimation works
   await xpToken.waitForDeployment();
   const xpAddress = await xpToken.getAddress();
   console.log("XP Token задеплоен:", xpAddress);

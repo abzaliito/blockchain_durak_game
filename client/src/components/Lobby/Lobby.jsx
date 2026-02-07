@@ -6,11 +6,18 @@ import styles from './Lobby.module.css';
 
 export default function Lobby() {
   const { tables, joinTable, walletAddress, socket, currentTable } = useSocket();
-  const { address, chipsBalance, xpBalance, buyChips, error, clearError, signer, connectWallet, isConnecting, createTableOnChain, joinTableOnChain, updateBalances } = useWeb3();
+  const { address, chipsBalance, xpBalance, buyChips, error, clearError, signer, connectWallet, isConnecting, createTableOnChain, joinTableOnChain, updateBalances, claimFreeChips } = useWeb3();
   const [buyAmount, setBuyAmount] = useState('0.01');
   const [isBuying, setIsBuying] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+
+  const handleClaim = async () => {
+    setIsClaiming(true);
+    await claimFreeChips();
+    setIsClaiming(false);
+  };
   const [pendingBlockchainJoin, setPendingBlockchainJoin] = useState(null);
 
   const isWalletConnected = !!signer;
@@ -213,7 +220,7 @@ export default function Lobby() {
                 onClick={handleBuyChips}
                 disabled={isBuying || isConnecting}
               >
-                {isBuying ? 'Processing...' : 'Buy'}
+                {isBuying ? 'Processing...' : 'Confirm Buy'}
               </button>
             </div>
           </motion.div>

@@ -17,24 +17,24 @@ export function Web3Provider({ children }) {
   useEffect(() => {
     const checkExistingConnection = async () => {
       if (!window.ethereum) return;
-      
+
       try {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
           const browserProvider = new BrowserProvider(window.ethereum);
           const walletSigner = await browserProvider.getSigner();
           const walletAddress = await walletSigner.getAddress();
-          
+
           setProvider(browserProvider);
           setSigner(walletSigner);
           setAddress(walletAddress);
-          
+
           const chipsContract = new Contract(CONTRACTS.CHIPS, CHIPS_ABI, browserProvider);
           const xpContract = new Contract(CONTRACTS.XP, XP_ABI, browserProvider);
-          
+
           const chips = await chipsContract.balanceOf(walletAddress);
           const xp = await xpContract.balanceOf(walletAddress);
-          
+
           setChipsBalance(formatEther(chips));
           setXpBalance(formatEther(xp));
         }
@@ -71,6 +71,31 @@ export function Web3Provider({ children }) {
     };
   }, []);
 
+  // Auto-claim free chips when user connects
+  useEffect(() => {
+    const checkAndClaim = async () => {
+      if (signer && address) {
+        try {
+          const chipsContract = new Contract(CONTRACTS.CHIPS, CHIPS_ABI, signer);
+          const claimed = await chipsContract.hasClaimed(address);
+
+          if (!claimed) {
+            console.log("Claiming free chips for new user...");
+            const tx = await chipsContract.claimFreeChips();
+            await tx.wait();
+            console.log("Free chips claimed!");
+            await updateBalances();
+          }
+        } catch (err) {
+          // Silent fail or log
+          console.warn("Auto-claim check failed:", err);
+        }
+      }
+    };
+
+    checkAndClaim();
+  }, [signer, address]);
+
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
       setError('MetaMask not installed');
@@ -83,7 +108,7 @@ export function Web3Provider({ children }) {
     try {
       const browserProvider = new BrowserProvider(window.ethereum);
       const accounts = await browserProvider.send('eth_requestAccounts', []);
-      
+
       const network = await browserProvider.getNetwork();
       if (Number(network.chainId) !== CHAIN_ID) {
         try {
@@ -167,6 +192,26 @@ export function Web3Provider({ children }) {
     setError(null);
   }, []);
 
+  const claimFreeChips = useCallback(async () => {
+    if (!signer) {
+      setError('Wallet not connected');
+      return false;
+    }
+    setError(null);
+    try {
+      const chipsContract = new Contract(CONTRACTS.CHIPS, CHIPS_ABI, signer);
+      const tx = await chipsContract.claimFreeChips();
+      await tx.wait();
+      await updateBalances();
+      return true;
+    } catch (err) {
+      console.error('Claim error:', err);
+      const message = err.reason || err.shortMessage || err.message || 'Transaction failed';
+      setError(message);
+      return false;
+    }
+  }, [signer, updateBalances]);
+
   const approveChips = useCallback(async (amount) => {
     if (!signer) return false;
 
@@ -192,7 +237,7 @@ export function Web3Provider({ children }) {
     try {
       const chipsContract = new Contract(CONTRACTS.CHIPS, CHIPS_ABI, signer);
       const feeWei = parseEther(entryFee.toString());
-      
+
       const allowance = await chipsContract.allowance(address, CONTRACTS.LOBBY);
       if (allowance < feeWei) {
         const approveTx = await chipsContract.approve(CONTRACTS.LOBBY, feeWei);
@@ -202,7 +247,7 @@ export function Web3Provider({ children }) {
       const lobbyContract = new Contract(CONTRACTS.LOBBY, LOBBY_ABI, signer);
       const tx = await lobbyContract.createTable(tableName, feeWei);
       const receipt = await tx.wait();
-      
+
       let blockchainTableId = null;
       for (const log of receipt.logs) {
         try {
@@ -211,7 +256,7 @@ export function Web3Provider({ children }) {
             blockchainTableId = Number(parsed.args.tableId);
             break;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       await updateBalances();
@@ -235,7 +280,7 @@ export function Web3Provider({ children }) {
     try {
       const chipsContract = new Contract(CONTRACTS.CHIPS, CHIPS_ABI, signer);
       const feeWei = parseEther(entryFee.toString());
-      
+
       const allowance = await chipsContract.allowance(address, CONTRACTS.LOBBY);
       if (allowance < feeWei) {
         const approveTx = await chipsContract.approve(CONTRACTS.LOBBY, feeWei);
@@ -245,7 +290,7 @@ export function Web3Provider({ children }) {
       const lobbyContract = new Contract(CONTRACTS.LOBBY, LOBBY_ABI, signer);
       const tx = await lobbyContract.joinTable(blockchainTableId);
       await tx.wait();
-      
+
       await updateBalances();
       return true;
     } catch (err) {
@@ -279,7 +324,8 @@ export function Web3Provider({ children }) {
     createTableOnChain,
     joinTableOnChain,
     updateBalances,
-    clearError
+    clearError,
+    claimFreeChips,
   };
 
   return (

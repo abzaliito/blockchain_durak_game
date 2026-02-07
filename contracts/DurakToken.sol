@@ -7,8 +7,18 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 // 1. Durak Chips (DRC) Валюта для ставок
 contract DurakChips is ERC20, Ownable {
     uint256 public constant RATE = 1000; // 1 ETH = 1000 Chips
+    uint256 public constant FREE_CHIPS = 100 * 10**18; // 100 DRC
+    
+    mapping(address => bool) public hasClaimed;
 
     constructor() ERC20("Durak Chips", "DRC") Ownable(msg.sender) {}
+
+    // Бесплатные 100 DRC для новых игроков (один раз)
+    function claimFreeChips() public {
+        require(!hasClaimed[msg.sender], "Already claimed");
+        hasClaimed[msg.sender] = true;
+        _mint(msg.sender, FREE_CHIPS);
+    }
 
     // Функция покупки: игрок отправляет ETH и получает фишки
     function buyChips() public payable {
