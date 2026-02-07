@@ -1,0 +1,33 @@
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+COPY client/package*.json ./
+RUN npm ci
+
+COPY client ./
+
+ARG CHIPS_ADDRESS
+ARG XP_ADDRESS
+ARG LOBBY_ADDRESS
+ARG RPC_URL
+ARG CHAIN_ID
+ARG SERVER_URL
+
+ENV CHIPS_ADDRESS=$CHIPS_ADDRESS
+ENV XP_ADDRESS=$XP_ADDRESS
+ENV LOBBY_ADDRESS=$LOBBY_ADDRESS
+ENV RPC_URL=$RPC_URL
+ENV CHAIN_ID=$CHAIN_ID
+ENV SERVER_URL=$SERVER_URL
+
+RUN npm run build
+
+FROM nginx:alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
