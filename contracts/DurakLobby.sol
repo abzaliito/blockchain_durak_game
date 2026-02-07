@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./DurakToken.sol";
+import "blockchain_durak_game/contracts/DurakToken.sol";
 
 contract DurakLobby {
     // STRUCTS
