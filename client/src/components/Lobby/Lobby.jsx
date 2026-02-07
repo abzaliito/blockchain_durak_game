@@ -6,7 +6,7 @@ import styles from './Lobby.module.css';
 
 export default function Lobby() {
   const { tables, joinTable, walletAddress, socket, currentTable } = useSocket();
-  const { address, chipsBalance, xpBalance, buyChips, error, clearError, signer, connectWallet, isConnecting, createTableOnChain, joinTableOnChain } = useWeb3();
+  const { address, chipsBalance, xpBalance, buyChips, error, clearError, signer, connectWallet, isConnecting, createTableOnChain, joinTableOnChain, updateBalances } = useWeb3();
   const [buyAmount, setBuyAmount] = useState('0.01');
   const [isBuying, setIsBuying] = useState(false);
   const [showBuyModal, setShowBuyModal] = useState(false);
@@ -25,9 +25,9 @@ export default function Lobby() {
 
     const handleJoinedTable = async (data) => {
       if (!signer) return;
-      
+
       const { isFirstPlayer, blockchainTableId, stake, tableName } = data;
-      
+
       if (isFirstPlayer) {
         const result = await createTableOnChain(tableName, stake);
         if (result.success && result.blockchainTableId !== null) {
@@ -59,12 +59,19 @@ export default function Lobby() {
     };
   }, [socket, signer, createTableOnChain, joinTableOnChain, pendingBlockchainJoin]);
 
+  // Refresh balances when returning to Lobby
+  useEffect(() => {
+    if (signer && updateBalances) {
+      updateBalances();
+    }
+  }, [signer, updateBalances]);
+
   const handleJoinTable = useCallback(async (tableId, stake) => {
     if (!signer) {
       await connectWallet();
       return;
     }
-    
+
     const balance = parseFloat(chipsBalance);
     if (balance < stake) {
       clearError();
@@ -89,7 +96,7 @@ export default function Lobby() {
   const handleBuyChips = async () => {
     setIsBuying(true);
     clearError();
-    
+
     try {
       if (!signer) {
         const connected = await connectWallet();
@@ -98,7 +105,7 @@ export default function Lobby() {
           return;
         }
       }
-      
+
       const success = await buyChips(buyAmount);
       if (success) {
         setShowBuyModal(false);
@@ -106,7 +113,7 @@ export default function Lobby() {
     } catch (err) {
       console.error('Buy chips error in Lobby:', err);
     }
-    
+
     setIsBuying(false);
   };
 
@@ -130,8 +137,8 @@ export default function Lobby() {
           </div>
         </div>
         {!isWalletConnected ? (
-          <button 
-            className={styles.reconnectBtn} 
+          <button
+            className={styles.reconnectBtn}
             onClick={handleReconnect}
             disabled={isConnecting}
           >
@@ -146,7 +153,7 @@ export default function Lobby() {
 
       {showBuyModal && (
         <div className={styles.modalOverlay} onClick={() => setShowBuyModal(false)}>
-          <motion.div 
+          <motion.div
             className={styles.modal}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -154,12 +161,12 @@ export default function Lobby() {
           >
             <h3>Buy Chips</h3>
             <p className={styles.rate}>1 ETH = 1000 DRC</p>
-            
+
             {error && (
               <div className={styles.errorBox}>
                 {error}
                 {error.includes('not connected') && (
-                  <button 
+                  <button
                     className={styles.reconnectInlineBtn}
                     onClick={handleReconnect}
                     disabled={isConnecting}
@@ -169,11 +176,11 @@ export default function Lobby() {
                 )}
               </div>
             )}
-            
+
             {!isWalletConnected && !error && (
               <div className={styles.warningBox}>
                 Wallet not connected
-                <button 
+                <button
                   className={styles.reconnectInlineBtn}
                   onClick={handleReconnect}
                   disabled={isConnecting}
@@ -182,7 +189,7 @@ export default function Lobby() {
                 </button>
               </div>
             )}
-            
+
             <div className={styles.buyInputGroup}>
               <input
                 type="number"
@@ -201,8 +208,8 @@ export default function Lobby() {
               <button className={styles.cancelBtn} onClick={() => setShowBuyModal(false)}>
                 Cancel
               </button>
-              <button 
-                className={styles.confirmBtn} 
+              <button
+                className={styles.confirmBtn}
                 onClick={handleBuyChips}
                 disabled={isBuying || isConnecting}
               >
@@ -213,7 +220,7 @@ export default function Lobby() {
         </div>
       )}
 
-      <motion.div 
+      <motion.div
         className={styles.header}
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -272,7 +279,7 @@ function TableCard({ table, index, onJoin, isJoining }) {
         <span className={styles.tableName}>{table.maxPlayers} Players</span>
         <span className={styles.stake}>{table.stake} DRC</span>
       </div>
-      
+
       <div className={styles.tableBody}>
         <div className={styles.playersInfo}>
           <div className={styles.playersCount}>
@@ -280,11 +287,11 @@ function TableCard({ table, index, onJoin, isJoining }) {
           </div>
           <div className={styles.playersLabel}>players</div>
         </div>
-        
+
         <div className={styles.playerSlots}>
           {Array.from({ length: table.maxPlayers }).map((_, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className={`${styles.slot} ${i < table.currentPlayers ? styles.filled : ''}`}
             />
           ))}

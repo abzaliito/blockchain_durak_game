@@ -29,7 +29,7 @@ class BlockchainService {
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
       this.signer = new ethers.Wallet(privateKey, this.provider);
       this.lobbyContract = new ethers.Contract(lobbyAddress, LOBBY_ABI, this.signer);
-      
+
       this.initialized = true;
       console.log('Blockchain service initialized');
       return true;
@@ -51,20 +51,27 @@ class BlockchainService {
     }
 
     try {
-      console.log(`Calling finishGame: tableId=${blockchainTableId}, winner=${winnerAddress}`);
-      const tx = await this.lobbyContract.finishGame(blockchainTableId, winnerAddress);
-      await tx.wait();
-      console.log(`finishGame transaction confirmed: ${tx.hash}`);
+      console.log(`[Blockchain] Calling finishGame: tableId=${blockchainTableId}, winner=${winnerAddress}`);
+
+      // Explicit gas limit and higher gas price for local network reliability
+      const tx = await this.lobbyContract.finishGame(blockchainTableId, winnerAddress, {
+        gasLimit: 500000
+      });
+
+      console.log(`[Blockchain] finishGame tx sent: ${tx.hash}`);
+      const receipt = await tx.wait();
+      console.log(`[Blockchain] finishGame confirmed in block ${receipt.blockNumber}`);
       return true;
     } catch (error) {
-      console.error('finishGame error:', error.message);
+      console.error('[Blockchain] finishGame CRITICAL ERROR:', error);
+      if (error.reason) console.error('[Blockchain] Revert reason:', error.reason);
       return false;
     }
   }
 
   async getTableInfo(blockchainTableId) {
     if (!this.initialized) return null;
-    
+
     try {
       const table = await this.lobbyContract.tables(blockchainTableId);
       return {

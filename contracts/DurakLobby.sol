@@ -68,6 +68,21 @@ contract DurakLobby {
         emit TableCreated(tables.length - 1, _name, _entryFee, msg.sender);
     }
 
+    // Отмена стола (если никто не присоединился)
+    function cancelTable(uint256 _tableId) external {
+        GameTable storage table = tables[_tableId];
+        require(table.isActive, "Game not active");
+        require(table.players.length == 1, "Players already joined"); // Только создатель
+        require(table.players[0] == msg.sender, "Only creator can cancel");
+
+        table.isActive = false;
+        
+        // Возврат ставки
+        require(chipsToken.transfer(msg.sender, table.entryFee), "Refund failed");
+        
+        emit GameFinished(_tableId,  address(0), 0); // Событие закрытия стола (победитель = 0)
+    }
+
     // Присоединение к столу
     function joinTable(uint256 _tableId) external {
         GameTable storage table = tables[_tableId];

@@ -48,8 +48,11 @@ export function SocketProvider({ children }) {
   }, []);
 
   const connect = useCallback((wallet) => {
-    const newSocket = io('http://localhost:3001');
-    
+    // Dynamically connect to the server on the same hostname
+    // Assuming backend runs on port 3001
+    const serverUrl = `http://${window.location.hostname}:3001`;
+    const newSocket = io(serverUrl);
+
     newSocket.on('connect', () => {
       setIsConnected(true);
       addLog('Connected to server', 'success');
@@ -152,7 +155,7 @@ export function SocketProvider({ children }) {
         if (!prev) return prev;
         return {
           ...prev,
-          players: prev.players.map(p => 
+          players: prev.players.map(p =>
             p.walletAddress === data.walletAddress ? { ...p, isReady: true } : p
           )
         };
@@ -181,7 +184,7 @@ export function SocketProvider({ children }) {
       setGameState(data.gameState);
       setIsDealing(true);
       setMyHand([]);
-      
+
       const cards = data.yourHand.hand;
       cards.forEach((card, index) => {
         setTimeout(() => {
@@ -191,7 +194,7 @@ export function SocketProvider({ children }) {
           }
         }, index * 200);
       });
-      
+
       addLog('Game started!', 'success');
     });
 
