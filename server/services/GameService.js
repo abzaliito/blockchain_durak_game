@@ -78,9 +78,11 @@ class GameService {
 
     this.game.addToTable(removedCard, playerIndex);
     this.game.currentAttackerIndex = playerIndex;
-    this.checkPlayerOut(player);
+    
+    const playerOut = this.checkPlayerOut(player);
+    const gameEnded = playerOut ? this.checkGameEnd() : false;
 
-    return { success: true, card: removedCard.toJSON() };
+    return { success: true, card: removedCard.toJSON(), gameEnded };
   }
 
   canPlayerAttack(playerIndex) {
@@ -137,9 +139,10 @@ class GameService {
     const removedCard = player.removeCard(defenseCard);
     tableEntry.defendedBy = removedCard;
 
-    this.checkPlayerOut(player);
+    const playerOut = this.checkPlayerOut(player);
+    const gameEnded = playerOut ? this.checkGameEnd() : false;
 
-    return { success: true, attackCard, defenseCard: removedCard.toJSON() };
+    return { success: true, attackCard, defenseCard: removedCard.toJSON(), gameEnded };
   }
 
   transfer(socketId, card) {
@@ -206,7 +209,9 @@ class GameService {
     this.game.defenderIndex = this.game.getNextActivePlayerIndex(this.game.attackerIndex);
     this.game.currentAttackerIndex = this.game.attackerIndex;
 
-    return { success: true, cardsTaken: allCards.length };
+    const gameEnded = this.checkGameEnd();
+
+    return { success: true, cardsTaken: allCards.length, gameEnded };
   }
 
   endAttack(socketId) {
@@ -307,6 +312,7 @@ class GameService {
     const player = this.game.getPlayerBySocketId(socketId);
     if (!player || player.isOut) return null;
 
+    this.game.loser = player;
     player.setOut(this.game.players.length);
     this.game.removeFromActivePlayers(player);
 
@@ -332,11 +338,29 @@ class GameService {
     this.game.discardPile.push(...player.hand);
     player.hand = [];
 
-    const gameEnded = this.checkGameEnd();
+    const remainingPlayers = this.game.activePlayers.filter(p => !p.isOut);
+    
+    if (remainingPlayers.length <= 1) {
+      this.game.state = GAME_STATE.FINISHED;
+      
+      remainingPlayers.forEach((p, index) => {
+        if (!p.isOut) {
+          p.setOut(this.game.finishOrder.length + 1);
+          this.game.finishOrder.push(p);
+        }
+      });
+      
+      return {
+        disconnectedPlayer: player.walletAddress,
+        gameEnded: true,
+        newAttackerIndex: this.game.attackerIndex,
+        newDefenderIndex: this.game.defenderIndex
+      };
+    }
 
     return {
       disconnectedPlayer: player.walletAddress,
-      gameEnded,
+      gameEnded: false,
       newAttackerIndex: this.game.attackerIndex,
       newDefenderIndex: this.game.defenderIndex
     };

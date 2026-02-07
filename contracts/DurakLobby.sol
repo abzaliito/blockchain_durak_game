@@ -83,8 +83,6 @@ contract DurakLobby {
         emit PlayerJoined(_tableId, msg.sender);
     }
 
-    // 4. ТВОЯ НОВАЯ ФУНКЦИЯ (Внедрена сюда)
-    // Вызывать её должен только сервер (owner), когда игра закончилась
     function finishGame(uint256 _tableId, address _winner) external onlyOwner {
         GameTable storage table = tables[_tableId];
         require(table.isActive, "Game already finished");
@@ -98,8 +96,6 @@ contract DurakLobby {
 
         // 2. Раздаем XP ВСЕМ игрокам за столом
         for (uint i = 0; i < table.players.length; i++) {
-            // Каждому даем по 10 XP (как в твоем примере)
-            // Можно добавить логику: победителю больше, проигравшим меньше
             xpToken.mintReward(table.players[i], 10 * 10**18); 
         }
 
