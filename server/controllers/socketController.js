@@ -4,6 +4,12 @@ const GameService = require('../services/GameService');
 const connectedPlayers = new Map();
 const tableStates = new Map();
 const activeGames = new Map();
+const disconnectTimeouts = new Map();
+const turnTimers = new Map();
+const readyTimers = new Map();
+const RECONNECT_TIMEOUT = 30000;
+const TURN_TIMEOUT = 20000;
+const READY_TIMEOUT = 15000;
 
 function initializeTables() {
   tables.forEach(table => {
@@ -14,6 +20,71 @@ function initializeTables() {
       gameInProgress: false
     });
   });
+}
+
+function startReadyTimer(io, tableId) {
+  clearReadyTimer(tableId);
+  
+  const tableState = tableStates.get(tableId);
+  if (!tableState || tableState.gameInProgress) return;
+
+  const startTime = Date.now();
+
+  io.to(tableId).emit('ready_timer_start', {
+    timeout: READY_TIMEOUT,
+    startTime
+  });
+
+  const timerId = setTimeout(() => {
+    handleReadyTimeout(io, tableId);
+  }, READY_TIMEOUT);
+
+  readyTimers.set(tableId, { timerId, startTime });
+}
+
+function clearReadyTimer(tableId) {
+  const timer = readyTimers.get(tableId);
+  if (timer) {
+    clearTimeout(timer.timerId);
+    readyTimers.delete(tableId);
+  }
+}
+
+function handleReadyTimeout(io, tableId) {
+  const tableState = tableStates.get(tableId);
+  if (!tableState || tableState.gameInProgress) return;
+
+  const notReadyPlayers = tableState.players.filter(p => !tableState.readyPlayers.has(p.socketId));
+
+  notReadyPlayers.forEach(p => {
+    const playerSocket = io.sockets.sockets.get(p.socketId);
+    if (playerSocket) {
+      const player = connectedPlayers.get(p.socketId);
+      if (player) {
+        tableState.players = tableState.players.filter(tp => tp.socketId !== p.socketId);
+        tableState.readyPlayers.delete(p.socketId);
+        playerSocket.leave(tableId);
+        player.currentTableId = null;
+
+        playerSocket.emit('kicked_not_ready', { tableId });
+        
+        io.to(tableId).emit('player_left', {
+          walletAddress: p.walletAddress,
+          playersCount: tableState.players.length,
+          reason: 'not_ready'
+        });
+
+        console.log(`Player ${p.walletAddress} kicked from table ${tableId} for not being ready`);
+      }
+    }
+  });
+
+  if (tableState.players.length === tableState.maxPlayers &&
+      tableState.readyPlayers.size === tableState.maxPlayers) {
+    startGame(io, tableState);
+  } else if (tableState.players.length < tableState.maxPlayers) {
+    io.to(tableId).emit('ready_timer_cancelled');
+  }
 }
 
 function setupSocketHandlers(io) {
@@ -47,18 +118,42 @@ function handleAuth(socket, data) {
     return;
   }
 
+  const wallet = walletAddress.toLowerCase();
+
   connectedPlayers.set(socket.id, {
     socketId: socket.id,
-    walletAddress: walletAddress.toLowerCase(),
+    walletAddress: wallet,
     currentTableId: null
   });
 
   socket.emit('auth_success', {
     message: 'Authenticated successfully',
-    walletAddress: walletAddress.toLowerCase()
+    walletAddress: wallet
   });
 
+  const activeSession = findActiveSession(wallet);
+  if (activeSession) {
+    socket.emit('active_session_found', {
+      tableId: activeSession.tableId,
+      gameInProgress: activeSession.gameInProgress
+    });
+  }
+
   console.log(`Player authenticated: ${walletAddress}`);
+}
+
+function findActiveSession(walletAddress) {
+  for (const [tableId, tableState] of tableStates) {
+    const playerInTable = tableState.players.find(p => p.walletAddress === walletAddress);
+    if (playerInTable) {
+      return {
+        tableId,
+        gameInProgress: tableState.gameInProgress,
+        tableState
+      };
+    }
+  }
+  return null;
 }
 
 function handleGetTables(socket) {
@@ -92,6 +187,42 @@ function handleJoinTable(io, socket, data) {
 
   if (!tableState) {
     socket.emit('error', { message: 'Table not found' });
+    return;
+  }
+
+  const existingPlayer = tableState.players.find(p => p.walletAddress === player.walletAddress);
+  
+  if (existingPlayer && tableState.gameInProgress) {
+    const existingTimeout = disconnectTimeouts.get(player.walletAddress);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      disconnectTimeouts.delete(player.walletAddress);
+    }
+
+    existingPlayer.socketId = socket.id;
+    player.currentTableId = tableId;
+    socket.join(tableId);
+
+    const gameService = activeGames.get(tableId);
+    if (gameService) {
+      const gamePlayer = gameService.game.players.find(p => p.walletAddress === player.walletAddress);
+      if (gamePlayer) {
+        gamePlayer.socketId = socket.id;
+      }
+
+      socket.emit('game_reconnected', {
+        tableId: tableState.id,
+        tableName: tableState.name,
+        gameState: gameService.getGameState(),
+        yourHand: gameService.getPlayerState(socket.id)
+      });
+
+      socket.to(tableId).emit('player_reconnected', {
+        walletAddress: player.walletAddress
+      });
+
+      console.log(`Player ${player.walletAddress} reconnected to game at table ${tableId}`);
+    }
     return;
   }
 
@@ -140,6 +271,10 @@ function handleJoinTable(io, socket, data) {
     playersCount: tableState.players.length
   });
 
+  if (tableState.players.length === tableState.maxPlayers) {
+    startReadyTimer(io, tableId);
+  }
+
   console.log(`Player ${player.walletAddress} joined table ${tableId}`);
 }
 
@@ -164,14 +299,22 @@ function leaveCurrentTable(io, socket, player) {
     if (gameService) {
       const result = gameService.handlePlayerDisconnect(socket.id);
       if (result) {
-        io.to(tableId).emit('player_disconnected', {
-          walletAddress: player.walletAddress,
-          gameEnded: result.gameEnded,
-          gameState: gameService.getGameState()
-        });
-
+        const gameState = gameService.getGameState();
+        
         if (result.gameEnded) {
+          io.to(tableId).emit('game_ended', {
+            gameState,
+            loser: gameState.loser,
+            finishOrder: gameState.finishOrder,
+            reason: 'player_left'
+          });
           endGame(io, tableId);
+        } else {
+          io.to(tableId).emit('player_disconnected', {
+            walletAddress: player.walletAddress,
+            gameEnded: false,
+            gameState
+          });
         }
       }
     }
@@ -179,6 +322,11 @@ function leaveCurrentTable(io, socket, player) {
 
   tableState.players = tableState.players.filter(p => p.socketId !== socket.id);
   tableState.readyPlayers.delete(socket.id);
+
+  if (tableState.players.length < tableState.maxPlayers) {
+    clearReadyTimer(tableId);
+    io.to(tableId).emit('ready_timer_cancelled');
+  }
 
   socket.leave(tableId);
   player.currentTableId = null;
@@ -219,6 +367,7 @@ function handlePlayerReady(io, socket) {
 
   if (tableState.players.length === tableState.maxPlayers &&
       tableState.readyPlayers.size === tableState.maxPlayers) {
+    clearReadyTimer(player.currentTableId);
     startGame(io, tableState);
   }
 }
@@ -241,12 +390,123 @@ function startGame(io, tableState) {
     if (playerSocket) {
       playerSocket.emit('game_started', {
         gameState,
-        yourHand: gameService.getPlayerState(p.socketId)
+        yourHand: gameService.getPlayerState(p.socketId),
+        turnTimeout: TURN_TIMEOUT
       });
     }
   });
 
+  startTurnTimer(io, tableState.id);
   console.log(`Game started at table ${tableState.id}`);
+}
+
+function startTurnTimer(io, tableId) {
+  clearTurnTimer(tableId);
+  
+  const gameService = activeGames.get(tableId);
+  if (!gameService || gameService.game.state !== 'playing') return;
+
+  const turnStartTime = Date.now();
+  
+  io.to(tableId).emit('turn_timer_start', {
+    timeout: TURN_TIMEOUT,
+    startTime: turnStartTime
+  });
+
+  const timerId = setTimeout(() => {
+    handleTurnTimeout(io, tableId);
+  }, TURN_TIMEOUT);
+
+  turnTimers.set(tableId, { timerId, startTime: turnStartTime });
+}
+
+function clearTurnTimer(tableId) {
+  const timer = turnTimers.get(tableId);
+  if (timer) {
+    clearTimeout(timer.timerId);
+    turnTimers.delete(tableId);
+  }
+}
+
+function handleTurnTimeout(io, tableId) {
+  const gameService = activeGames.get(tableId);
+  const tableState = tableStates.get(tableId);
+  
+  if (!gameService || !tableState || gameService.game.state !== 'playing') return;
+
+  const { defenderIndex, attackerIndex, tableCards } = gameService.game;
+  const hasUndefended = tableCards.some(tc => !tc.defendedBy);
+  
+  if (tableCards.length === 0) {
+    const attacker = gameService.game.players[attackerIndex];
+    if (attacker && attacker.hand.length > 0) {
+      const randomCard = attacker.hand[0];
+      const result = gameService.attack(attacker.socketId, randomCard);
+      
+      if (result.success) {
+        io.to(tableId).emit('auto_action', { 
+          action: 'attack', 
+          walletAddress: attacker.walletAddress,
+          reason: 'timeout'
+        });
+        broadcastGameUpdate(io, tableId, 'card_played', {
+          action: 'attack',
+          walletAddress: attacker.walletAddress,
+          card: result.card,
+          auto: true
+        });
+      }
+    }
+  } else if (hasUndefended) {
+    const defender = gameService.game.players[defenderIndex];
+    if (defender) {
+      const result = gameService.takeCards(defender.socketId);
+      
+      if (result.success) {
+        io.to(tableId).emit('auto_action', { 
+          action: 'take_cards', 
+          walletAddress: defender.walletAddress,
+          reason: 'timeout'
+        });
+        
+        if (result.gameEnded) {
+          broadcastGameEnd(io, tableId);
+          return;
+        } else {
+          broadcastGameUpdate(io, tableId, 'cards_taken', {
+            walletAddress: defender.walletAddress,
+            cardsTaken: result.cardsTaken,
+            auto: true
+          });
+        }
+      }
+    }
+  } else {
+    const attacker = gameService.game.players[attackerIndex];
+    if (attacker) {
+      const result = gameService.endAttack(attacker.socketId);
+      
+      if (result.success) {
+        io.to(tableId).emit('auto_action', { 
+          action: 'end_attack', 
+          walletAddress: attacker.walletAddress,
+          reason: 'timeout'
+        });
+        
+        if (result.gameEnded) {
+          broadcastGameEnd(io, tableId);
+          return;
+        } else {
+          broadcastGameUpdate(io, tableId, 'attack_ended', {
+            walletAddress: attacker.walletAddress,
+            auto: true
+          });
+        }
+      }
+    }
+  }
+
+  startTurnTimer(io, tableId);
 }
 
 function handleAttack(io, socket, data) {
@@ -269,11 +529,15 @@ function handleAttack(io, socket, data) {
     return;
   }
 
-  broadcastGameUpdate(io, player.currentTableId, 'card_played', {
-    action: 'attack',
-    walletAddress: player.walletAddress,
-    card: result.card
-  });
+  if (result.gameEnded) {
+    broadcastGameEnd(io, player.currentTableId);
+  } else {
+    broadcastGameUpdate(io, player.currentTableId, 'card_played', {
+      action: 'attack',
+      walletAddress: player.walletAddress,
+      card: result.card
+    });
+  }
 }
 
 function handleDefend(io, socket, data) {
@@ -296,12 +560,16 @@ function handleDefend(io, socket, data) {
     return;
   }
 
-  broadcastGameUpdate(io, player.currentTableId, 'card_played', {
-    action: 'defend',
-    walletAddress: player.walletAddress,
-    attackCard: result.attackCard,
-    defenseCard: result.defenseCard
-  });
+  if (result.gameEnded) {
+    broadcastGameEnd(io, player.currentTableId);
+  } else {
+    broadcastGameUpdate(io, player.currentTableId, 'card_played', {
+      action: 'defend',
+      walletAddress: player.walletAddress,
+      attackCard: result.attackCard,
+      defenseCard: result.defenseCard
+    });
+  }
 }
 
 function handleTransfer(io, socket, data) {
@@ -351,10 +619,14 @@ function handleTakeCards(io, socket) {
     return;
   }
 
-  broadcastGameUpdate(io, player.currentTableId, 'cards_taken', {
-    walletAddress: player.walletAddress,
-    cardsTaken: result.cardsTaken
-  });
+  if (result.gameEnded) {
+    broadcastGameEnd(io, player.currentTableId);
+  } else {
+    broadcastGameUpdate(io, player.currentTableId, 'cards_taken', {
+      walletAddress: player.walletAddress,
+      cardsTaken: result.cardsTaken
+    });
+  }
 }
 
 function handleEndAttack(io, socket) {
@@ -426,10 +698,13 @@ function broadcastGameUpdate(io, tableId, eventName, eventData) {
       playerSocket.emit(eventName, {
         ...eventData,
         gameState,
-        yourHand: gameService.getPlayerState(p.socketId)
+        yourHand: gameService.getPlayerState(p.socketId),
+        turnTimeout: TURN_TIMEOUT
       });
     }
   });
+
+  startTurnTimer(io, tableId);
 }
 
 function broadcastGameEnd(io, tableId) {
@@ -448,6 +723,8 @@ function broadcastGameEnd(io, tableId) {
 }
 
 function endGame(io, tableId) {
+  clearTurnTimer(tableId);
+  
   const tableState = tableStates.get(tableId);
 
   if (tableState) {
@@ -464,9 +741,52 @@ function handleDisconnect(io, socket) {
   const player = connectedPlayers.get(socket.id);
 
   if (player) {
-    if (player.currentTableId) {
-      leaveCurrentTable(io, socket, player);
+    const tableId = player.currentTableId;
+    const tableState = tableId ? tableStates.get(tableId) : null;
+
+    if (tableState && tableState.gameInProgress) {
+      console.log(`Player ${player.walletAddress} disconnected during game, waiting for reconnect...`);
+      
+      socket.to(tableId).emit('player_temporarily_disconnected', {
+        walletAddress: player.walletAddress
+      });
+
+      const timeoutId = setTimeout(() => {
+        console.log(`Player ${player.walletAddress} did not reconnect, removing from game`);
+        
+        const currentPlayer = Array.from(connectedPlayers.values())
+          .find(p => p.walletAddress === player.walletAddress);
+        
+        if (!currentPlayer || currentPlayer.currentTableId !== tableId) {
+          const gameService = activeGames.get(tableId);
+          if (gameService) {
+            const result = gameService.handlePlayerDisconnect(socket.id);
+            if (result) {
+              io.to(tableId).emit('player_disconnected', {
+                walletAddress: player.walletAddress,
+                gameEnded: result.gameEnded,
+                gameState: gameService.getGameState()
+              });
+
+              if (result.gameEnded) {
+                endGame(io, tableId);
+              }
+            }
+          }
+
+          tableState.players = tableState.players.filter(p => p.walletAddress !== player.walletAddress);
+        }
+
+        disconnectTimeouts.delete(player.walletAddress);
+      }, RECONNECT_TIMEOUT);
+
+      disconnectTimeouts.set(player.walletAddress, timeoutId);
+    } else {
+      if (player.currentTableId) {
+        leaveCurrentTable(io, socket, player);
+      }
     }
+
     connectedPlayers.delete(socket.id);
     console.log(`Player disconnected: ${player.walletAddress}`);
   } else {

@@ -31,6 +31,13 @@ class Deck {
     if (this.cards.length === 0) {
       return null;
     }
+    
+    if (this.cards.length === 1 && this.trumpCard) {
+      const card = this.cards.shift();
+      this.trumpCard = null;
+      return card;
+    }
+    
     return this.cards.pop();
   }
 
