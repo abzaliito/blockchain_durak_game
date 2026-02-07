@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: durak-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3001:3001"
+    networks:
+      - durak-network
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      args:
+        CHIPS_ADDRESS: ${CHIPS_ADDRESS}
+        XP_ADDRESS: ${XP_ADDRESS}
+        LOBBY_ADDRESS: ${LOBBY_ADDRESS}
+        RPC_URL: ${RPC_URL}
+        CHAIN_ID: ${CHAIN_ID:-31337}
+        SERVER_URL: ${SERVER_URL:-}
+    container_name: durak-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - durak-network
+
+networks:
+  durak-network:
+    driver: bridge

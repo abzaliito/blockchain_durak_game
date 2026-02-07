@@ -1,0 +1,14 @@
+node_modules
+client/node_modules
+client/dist
+.git
+.gitignore
+*.md
+.env
+.env.local
+artifacts
+cache
+coverage
+typechain
+typechain-types
+test
