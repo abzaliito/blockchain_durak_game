@@ -1,0 +1,127 @@
+.playArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.tableInfo {
+  margin-bottom: 15px;
+  height: 24px;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.table {
+  background: var(--table-felt);
+  border-radius: 20px;
+  min-height: 200px;
+  min-width: 400px;
+  padding: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    inset 0 2px 10px rgba(0, 0, 0, 0.3),
+    0 0 0 8px #1a3d2e,
+    0 0 0 12px #0d2818,
+    0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.3s ease;
+  position: relative;
+}
+
+.table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
+  pointer-events: none;
+}
+
+.dropHover {
+  box-shadow: 
+    inset 0 2px 10px rgba(0, 0, 0, 0.3),
+    0 0 0 8px #1a3d2e,
+    0 0 0 12px #0d2818,
+    0 10px 30px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(99, 102, 241, 0.4);
+}
+
+.emptyTable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropZone {
+  width: 100px;
+  height: 140px;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.cardPairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.cardPair {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+}
+
+.attackCard {
+  position: relative;
+}
+
+.defenseSlot {
+  position: relative;
+  margin-top: -30px;
+  margin-left: 15px;
+  transition: transform 0.2s ease;
+}
+
+.defenseSlot.dropHover {
+  transform: scale(1.05);
+}
+
+.emptySlot {
+  width: 60px;
+  height: 84px;
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.emptySlot span {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  padding: 5px;
+}

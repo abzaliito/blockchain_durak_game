@@ -17,9 +17,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "node server/index.js",
-    "server:dev": "nodemon server/index.js"
+    "server:dev": "nodemon server/index.js",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client\""
   },
   "dependencies": {
+    "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "socket.io": "^4.7.5"

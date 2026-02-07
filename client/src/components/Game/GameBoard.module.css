@@ -1,0 +1,455 @@
+.gameBoard {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: 
+    radial-gradient(ellipse at 50% 50%, rgba(22, 101, 52, 0.1) 0%, transparent 70%);
+}
+
+.opponents {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 150px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  gap: 20px;
+  z-index: 10;
+}
+
+.mainArea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 150px 150px 200px;
+}
+
+.actions {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 20;
+}
+
+.actionBtn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.actionBtn:hover {
+  background: var(--bg-hover);
+  transform: scale(1.05);
+}
+
+.actionBtn.success {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+
+.actionBtn.success:hover {
+  background: #16a34a;
+}
+
+.actionBtn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.actionBtn.danger:hover {
+  background: #dc2626;
+}
+
+.myInfo {
+  position: absolute;
+  bottom: 180px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.handContainer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: linear-gradient(to top, var(--bg-primary) 0%, transparent 100%);
+}
+
+.gameOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(15px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.gameOverContent {
+  background: linear-gradient(145deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+  padding: 50px 60px;
+  border-radius: 24px;
+  text-align: center;
+  border: 1px solid var(--border);
+  box-shadow: 
+    var(--shadow-lg),
+    0 0 60px rgba(99, 102, 241, 0.2);
+  min-width: 400px;
+}
+
+.gameOverIcon {
+  font-size: 4rem;
+  margin-bottom: 10px;
+}
+
+.gameOverContent h2 {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, var(--accent-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.loser {
+  font-size: 1.1rem;
+  color: var(--danger);
+  margin-bottom: 25px;
+  padding: 12px 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.finishOrder {
+  text-align: left;
+  margin-bottom: 30px;
+}
+
+.finishOrder h3 {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.resultRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-primary);
+  border-radius: 10px;
+  margin: 8px 0;
+  font-size: 0.95rem;
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.resultRow.you {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: var(--accent);
+}
+
+.position {
+  font-weight: 700;
+  color: var(--accent-light);
+  min-width: 30px;
+}
+
+.youBadge {
+  margin-left: auto;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: var(--success);
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.leaveBtn {
+  width: 100%;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.leaveBtn:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+.exitBtn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exitBtn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.waitingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.waitingCard {
+  background: var(--bg-secondary);
+  border-radius: 20px;
+  padding: 40px;
+  min-width: 400px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.waitingCard h2 {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+}
+
+.waitingInfo {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+
+.gameModeBadge {
+  padding: 5px 12px;
+  background: var(--accent);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.stakeBadge {
+  padding: 5px 12px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.waitingPlayers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+
+.waitingSlot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.waitingSlot.you {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.waitingIcon {
+  font-size: 1.2rem;
+}
+
+.waitingAddress {
+  flex: 1;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.youTag {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.readyTag {
+  color: var(--success);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.notReadyTag {
+  color: var(--text-muted);
+}
+
+.emptyText {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.waitingActions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.readyBtnWrapper {
+  position: relative;
+  --timer-progress: 1;
+}
+
+.readyBtnWrapper.hasTimer::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 14px;
+  background: conic-gradient(
+    from 0deg,
+    #f43f5e calc(var(--timer-progress) * 360deg),
+    rgba(255, 255, 255, 0.1) calc(var(--timer-progress) * 360deg)
+  );
+  z-index: 0;
+  animation: pulse 0.5s ease-in-out infinite;
+}
+
+.readyBtnWrapper.hasTimer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  z-index: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.readyBtn {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--success) 0%, #16a34a 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hasTimer .readyBtn {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  animation: shake 0.3s ease-in-out infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.readyBtn:hover {
+  filter: brightness(1.1);
+}
+
+.waitingStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.waitingSpinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.leaveTableBtn {
+  padding: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
+
+.leaveTableBtn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
