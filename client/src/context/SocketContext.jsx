@@ -48,7 +48,8 @@ export function SocketProvider({ children }) {
   }, []);
 
   const connect = useCallback((wallet) => {
-    const newSocket = io('http://localhost:3001');
+    const serverUrl = __SERVER_URL__ || 'http://localhost:3001';
+    const newSocket = io(serverUrl);
     
     newSocket.on('connect', () => {
       setIsConnected(true);

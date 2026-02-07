@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
       __LOBBY_ADDRESS__: JSON.stringify(env.LOBBY_ADDRESS),
       __RPC_URL__: JSON.stringify(env.RPC_URL || 'http://127.0.0.1:8545'),
       __CHAIN_ID__: JSON.stringify(env.CHAIN_ID || '31337'),
+      __SERVER_URL__: JSON.stringify(env.SERVER_URL || ''),
     }
   }
 })
