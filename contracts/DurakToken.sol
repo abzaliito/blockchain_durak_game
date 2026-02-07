@@ -4,31 +4,33 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-// 1. ТОКЕН-ВАЛЮТА (Для ставок)
+// 1. ВАЛЮТА ИГРЫ (Durak Chips - DRC)
+// Игроки покупают их за ETH и ставят в игре
 contract DurakChips is ERC20, Ownable {
-    uint256 public constant CHIPS_PER_ETH = 1000;
+    // Курс: 1 ETH = 1000 Фишек
+    uint256 public constant RATE = 1000;
 
     constructor() ERC20("Durak Chips", "DRC") Ownable(msg.sender) {}
 
-    // Покупка фишек за ETH
+    // Функция покупки фишек
     function buyChips() public payable {
         require(msg.value > 0, "Send ETH to buy chips");
-        uint256 amount = msg.value * CHIPS_PER_ETH;
+        uint256 amount = msg.value * RATE;
         _mint(msg.sender, amount);
     }
 
-    // Вывод ETH владельцу проекта
+    // Вывод заработанного ETH админу
     function withdraw() public onlyOwner {
         payable(owner()).transfer(address(this).balance);
     }
 }
 
-// 2. ТОКЕН-ОПЫТ хп
+// 2. ОПЫТ (Durak XP - DXP)
+// Выдается автоматически за игру
 contract DurakXP is ERC20, Ownable {
     constructor() ERC20("Durak Experience", "DXP") Ownable(msg.sender) {}
 
-    // Автоматический минтинг (Вызывает только контракт игры)
-    function mintReward(address player, uint256 amount) public onlyOwner {
-        _mint(player, amount);
+    function mintReward(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
     }
 }
