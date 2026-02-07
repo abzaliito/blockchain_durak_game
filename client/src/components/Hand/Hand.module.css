@@ -1,0 +1,23 @@
+.hand {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  padding-bottom: 30px;
+  perspective: 1000px;
+}
+
+.cardsContainer {
+  position: relative;
+  height: 140px;
+  transform-style: preserve-3d;
+}
+
+.cardWrapper {
+  position: absolute;
+  bottom: 0;
+  transform-style: preserve-3d;
+}
+
+.cardWrapper:hover {
+  z-index: 100 !important;
+}

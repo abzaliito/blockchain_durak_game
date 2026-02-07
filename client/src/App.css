@@ -1,0 +1,21 @@
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.loading-content {
+  text-align: center;
+}
+
+.loading-icon {
+  font-size: 5rem;
+  margin-bottom: 20px;
+}
+
+.loading-content p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
