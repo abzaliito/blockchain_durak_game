@@ -1,7 +1,7 @@
 const { Card, SUITS, RANKS } = require('./Card');
 const Deck = require('./Deck');
 const Player = require('./Player');
-const { Game, GAME_STATE } = require('./Game');
+const { Game, GAME_STATE, CARDS_PER_PLAYER } = require('./Game');
 
 module.exports = {
   Card,
@@ -10,5 +10,6 @@ module.exports = {
   Deck,
   Player,
   Game,
-  GAME_STATE
+  GAME_STATE,
+  CARDS_PER_PLAYER
 };
