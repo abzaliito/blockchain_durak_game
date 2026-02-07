@@ -1,5 +1,6 @@
 const { tables } = require('../config/tables');
 const GameService = require('../services/GameService');
+const blockchainService = require('../services/BlockchainService');
 
 const connectedPlayers = new Map();
 const tableStates = new Map();
@@ -17,7 +18,8 @@ function initializeTables() {
       ...table,
       players: [],
       readyPlayers: new Set(),
-      gameInProgress: false
+      gameInProgress: false,
+      blockchainTableId: null
     });
   });
 }
@@ -98,6 +100,7 @@ function setupSocketHandlers(io) {
     socket.on('join_table', (data) => handleJoinTable(io, socket, data));
     socket.on('leave_table', () => handleLeaveTable(io, socket));
     socket.on('player_ready', () => handlePlayerReady(io, socket));
+    socket.on('blockchain_table_created', (data) => handleBlockchainTableCreated(io, socket, data));
 
     socket.on('attack', (data) => handleAttack(io, socket, data));
     socket.on('defend', (data) => handleDefend(io, socket, data));
@@ -263,7 +266,9 @@ function handleJoinTable(io, socket, data) {
     players: tableState.players.map(p => ({
       walletAddress: p.walletAddress,
       isReady: tableState.readyPlayers.has(p.socketId)
-    }))
+    })),
+    blockchainTableId: tableState.blockchainTableId,
+    isFirstPlayer: tableState.players.length === 1
   });
 
   socket.to(tableId).emit('player_joined', {
@@ -308,6 +313,15 @@ function leaveCurrentTable(io, socket, player) {
             finishOrder: gameState.finishOrder,
             reason: 'player_left'
           });
+          
+          if (tableState.blockchainTableId !== null) {
+            const winner = gameState.finishOrder?.[0] || 
+              gameState.players.find(p => p.walletAddress !== gameState.loser)?.walletAddress;
+            if (winner) {
+              blockchainService.finishGame(tableState.blockchainTableId, winner);
+            }
+          }
+          
           endGame(io, tableId);
         } else {
           io.to(tableId).emit('player_disconnected', {
@@ -707,10 +721,11 @@ function broadcastGameUpdate(io, tableId, eventName, eventData) {
   startTurnTimer(io, tableId);
 }
 
-function broadcastGameEnd(io, tableId) {
+async function broadcastGameEnd(io, tableId) {
   const gameService = activeGames.get(tableId);
   if (!gameService) return;
 
+  const tableState = tableStates.get(tableId);
   const gameState = gameService.getGameState();
 
   io.to(tableId).emit('game_ended', {
@@ -718,6 +733,16 @@ function broadcastGameEnd(io, tableId) {
     loser: gameState.loser,
     finishOrder: gameState.finishOrder
   });
+
+  if (tableState && tableState.blockchainTableId !== null) {
+    const winner = gameState.finishOrder && gameState.finishOrder.length > 0 
+      ? gameState.finishOrder[0] 
+      : gameState.players.find(p => p.walletAddress !== gameState.loser)?.walletAddress;
+    
+    if (winner) {
+      blockchainService.finishGame(tableState.blockchainTableId, winner);
+    }
+  }
 
   endGame(io, tableId);
 }
@@ -730,11 +755,27 @@ function endGame(io, tableId) {
   if (tableState) {
     tableState.gameInProgress = false;
     tableState.readyPlayers.clear();
+    tableState.blockchainTableId = null;
   }
 
   activeGames.delete(tableId);
 
   console.log(`Game ended at table ${tableId}`);
+}
+
+function handleBlockchainTableCreated(io, socket, data) {
+  const player = connectedPlayers.get(socket.id);
+  if (!player || !player.currentTableId) return;
+
+  const tableState = tableStates.get(player.currentTableId);
+  if (!tableState) return;
+
+  tableState.blockchainTableId = data.blockchainTableId;
+  console.log(`Blockchain table ${data.blockchainTableId} linked to server table ${player.currentTableId}`);
+  
+  io.to(player.currentTableId).emit('blockchain_table_linked', {
+    blockchainTableId: data.blockchainTableId
+  });
 }
 
 function handleDisconnect(io, socket) {
@@ -762,13 +803,21 @@ function handleDisconnect(io, socket) {
           if (gameService) {
             const result = gameService.handlePlayerDisconnect(socket.id);
             if (result) {
+              const gameState = gameService.getGameState();
               io.to(tableId).emit('player_disconnected', {
                 walletAddress: player.walletAddress,
                 gameEnded: result.gameEnded,
-                gameState: gameService.getGameState()
+                gameState
               });
 
               if (result.gameEnded) {
+                if (tableState.blockchainTableId !== null) {
+                  const winner = gameState.finishOrder?.[0] || 
+                    gameState.players.find(p => p.walletAddress !== gameState.loser)?.walletAddress;
+                  if (winner) {
+                    blockchainService.finishGame(tableState.blockchainTableId, winner);
+                  }
+                }
                 endGame(io, tableId);
               }
             }
