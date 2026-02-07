@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useSocket } from '../../context/SocketContext';
 import { useWeb3 } from '../../context/Web3Context';
@@ -35,6 +36,103 @@ export default function Lobby() {
   const groupedTables = {
     podkidnoy: tables.filter(t => t.gameMode === 'podkidnoy'),
     perevodnoy: tables.filter(t => t.gameMode === 'perevodnoy')
+  };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleJoinedTable = async (data) => {
+      if (!signer) return;
+
+      const { isFirstPlayer, blockchainTableId, stake, tableName } = data;
+
+      if (isFirstPlayer) {
+        const result = await createTableOnChain(tableName, stake);
+        if (result.success && result.blockchainTableId !== null) {
+          socket.emit('blockchain_table_created', { blockchainTableId: result.blockchainTableId });
+        }
+        setIsJoining(false);
+      } else if (blockchainTableId !== null) {
+        await joinTableOnChain(blockchainTableId, stake);
+        setIsJoining(false);
+      } else {
+        setPendingBlockchainJoin({ stake });
+      }
+    };
+
+    const handleBlockchainTableLinked = async (data) => {
+      if (pendingBlockchainJoin && signer) {
+        await joinTableOnChain(data.blockchainTableId, pendingBlockchainJoin.stake);
+        setPendingBlockchainJoin(null);
+        setIsJoining(false);
+      }
+    };
+
+    socket.on('joined_table', handleJoinedTable);
+    socket.on('blockchain_table_linked', handleBlockchainTableLinked);
+
+    return () => {
+      socket.off('joined_table', handleJoinedTable);
+      socket.off('blockchain_table_linked', handleBlockchainTableLinked);
+    };
+  }, [socket, signer, createTableOnChain, joinTableOnChain, pendingBlockchainJoin]);
+
+  // Refresh balances when returning to Lobby
+  useEffect(() => {
+    if (signer && updateBalances) {
+      updateBalances();
+    }
+  }, [signer, updateBalances]);
+
+  const handleJoinTable = useCallback(async (tableId, stake) => {
+    if (!signer) {
+      await connectWallet();
+      return;
+    }
+
+    const balance = parseFloat(chipsBalance);
+    if (balance < stake) {
+      clearError();
+      setShowBuyModal(true);
+      return;
+    }
+
+    setIsJoining(true);
+    joinTable(tableId);
+  }, [signer, chipsBalance, connectWallet, joinTable, clearError]);
+
+  const handleOpenModal = () => {
+    clearError();
+    setShowBuyModal(true);
+  };
+
+  const handleReconnect = async () => {
+    clearError();
+    await connectWallet();
+  };
+
+  const handleBuyChips = async () => {
+    setIsBuying(true);
+    clearError();
+
+    try {
+      if (!signer) {
+        const connected = await connectWallet();
+        if (!connected) {
+          setIsBuying(false);
+          return;
+        }
+      }
+
+      const success = await buyChips(buyAmount);
+      if (success) {
+        setShowBuyModal(false);
+      }
+    } catch (err) {
+      console.error('Buy chips error in Lobby:', err);
+    }
+
+    setIsBuying(false);
   };
 
   return (
@@ -106,10 +204,10 @@ export default function Lobby() {
   );
 }
 
-function TableCard({ table, index, onJoin }) {
+function TableCard({ table, index, onJoin, isJoining }) {
   const isFull = table.currentPlayers >= table.maxPlayers;
   const isInProgress = table.gameInProgress;
-  const canJoin = !isFull && !isInProgress;
+  const canJoin = !isFull && !isInProgress && !isJoining;
 
   return (
     <motion.div
@@ -124,7 +222,7 @@ function TableCard({ table, index, onJoin }) {
         <span className={styles.tableName}>{table.maxPlayers} Players</span>
         <span className={styles.stake}>{table.stake} DRC</span>
       </div>
-      
+
       <div className={styles.tableBody}>
         <div className={styles.playersInfo}>
           <div className={styles.playersCount}>
@@ -132,11 +230,11 @@ function TableCard({ table, index, onJoin }) {
           </div>
           <div className={styles.playersLabel}>players</div>
         </div>
-        
+
         <div className={styles.playerSlots}>
           {Array.from({ length: table.maxPlayers }).map((_, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className={`${styles.slot} ${i < table.currentPlayers ? styles.filled : ''}`}
             />
           ))}
