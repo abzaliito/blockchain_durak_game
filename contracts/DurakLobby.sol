@@ -1,104 +1,68 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "blockchain_durak_game/contracts/DurakToken.sol";
+// Импорт твоего файла с токенами
+import "./DurakToken.sol";
 
 contract DurakLobby {
-    // STRUCTS
-    struct Campaign {
-        address creator;        // The person who made the table
-        string title;           // Table Name
-        uint256 targetAmount;   // The Total Pot (Entry Fee * 2)
-        uint256 currentFunds;   // How much is in the pot currently
-        uint256 deadline;       // Time until table closes
-        bool finalized;         // Game Over status
-        address[] contributors; // Players at the table
+    // Ссылки на твои контракты токенов
+    DurakChips public chipsToken;
+    DurakXP public xpToken;
+
+    struct Game {
+        address creator;
+        uint256 betAmount;
+        address[] players;
+        bool isActive;
+        bool finalized;
     }
 
-    // STATE VARIABLES
-    DurakToken public rewardToken;
-    uint256 public campaignCount = 0;
-    mapping(uint256 => Campaign) public campaigns;
-    mapping(uint256 => mapping(address => uint256)) public contributions;
+    uint256 public gameCount;
+    mapping(uint256 => Game) public games;
 
-    // EVENTS
-    event CampaignCreated(uint256 indexed campaignId, string title, uint256 targetAmount, uint256 deadline);
-    event ContributionReceived(uint256 indexed campaignId, address indexed contributor, uint256 amount);
-    event GameStarted(uint256 indexed campaignId, address player1, address player2);
-    event CampaignFinalized(uint256 indexed campaignId, address winner, uint256 payout);
-
-    // INITIALIZATION
-    constructor() {
-        rewardToken = new DurakToken();
+    // Конструктор принимает адреса УЖЕ созданных токенов
+    constructor(address _chipsAddr, address _xpAddr) {
+        chipsToken = DurakChips(_chipsAddr);
+        xpToken = DurakXP(_xpAddr);
     }
 
-    // Function 1: Create Table (Crowdfunding Campaign)
-    function createCampaign(string memory _title, uint256 _durationSeconds) public payable {
-        require(msg.value > 0, "Entry fee required to create table");
+    // Создание стола со ставкой в фишках DRC
+    function createTable(uint256 _bet) external {
+        // Игрок должен сначала вызвать approve в контракте фишек
+        chipsToken.transferFrom(msg.sender, address(this), _bet);
 
-        uint256 goal = msg.value * 2; 
-        uint256 deadline = block.timestamp + _durationSeconds;
-
-        campaignCount++;
-        Campaign storage newCamp = campaigns[campaignCount];
-        newCamp.creator = msg.sender;
-        newCamp.title = _title;
-        newCamp.targetAmount = goal;
-        newCamp.currentFunds = 0; 
-        newCamp.deadline = deadline;
-        newCamp.finalized = false;
-
-        emit CampaignCreated(campaignCount, _title, goal, deadline);
-
-        // Auto-contribute the creator's fee
-        contribute(campaignCount); 
+        gameCount++;
+        Game storage newGame = games[gameCount];
+        newGame.creator = msg.sender;
+        newGame.betAmount = _bet;
+        newGame.players.push(msg.sender);
+        newGame.isActive = true;
     }
 
-    // Function 2: Join Table (Contribute)
-    function contribute(uint256 _id) public payable {
-        Campaign storage camp = campaigns[_id];
+    // Присоединиться к игре
+    function joinTable(uint256 _id) external {
+        Game storage game = games[_id];
+        require(game.isActive, "Game not active");
+        
+        chipsToken.transferFrom(msg.sender, address(this), game.betAmount);
+        game.players.push(msg.sender);
+    }
 
-        require(block.timestamp < camp.deadline, "Table closed (Deadline passed)");
-        require(!camp.finalized, "Game already finished");
-        require(camp.currentFunds + msg.value <= camp.targetAmount, "Table is full!");
+    // Завершить игру: выплата победителю и МИНТИНГ ОПЫТА (Requirement 3.3)
+    function finishGame(uint256 _id, address _winner) external {
+        Game storage game = games[_id];
+        require(game.isActive && !game.finalized, "Game already over");
+        
+        game.finalized = true;
+        game.isActive = false;
 
-        // 1. Track Money
-        camp.currentFunds += msg.value;
-        contributions[_id][msg.sender] += msg.value;
-        camp.contributors.push(msg.sender);
+        // 1. Выплата банка победителю
+        uint256 totalPot = game.betAmount * game.players.length;
+        chipsToken.transfer(_winner, totalPot);
 
-        // 2. Mint Reward Tokens (Calls Member 2's Logic)
-        uint256 rewardAmount = msg.value * 1000;
-        rewardToken.mint(msg.sender, rewardAmount);
-
-        emit ContributionReceived(_id, msg.sender, msg.value);
-
-        // 3. Check Game Start Condition
-        if (camp.currentFunds >= camp.targetAmount) {
-            address p1 = camp.contributors[0];
-            address p2 = camp.contributors[1];
-            emit GameStarted(_id, p1, p2);
+        // 2. Автоматический минтинг наградных токенов XP для всех (Task 2)
+        for (uint i = 0; i < game.players.length; i++) {
+            xpToken.mintReward(game.players[i], 10 * 10**18); // 10 DXP каждому
         }
-    }
-
-    // Function 3: Payout Winner (Finalize)
-    function finalizeCampaign(uint256 _id, address _winner) public {
-        Campaign storage camp = campaigns[_id];
-        require(!camp.finalized, "Already paid out");
-        
-        // Security check (Simple version for exam)
-        require(msg.sender == camp.creator || contributions[_id][msg.sender] > 0, "Not authorized");
-        
-        camp.finalized = true;
-
-        // Transfer the pot to the winner
-        payable(_winner).transfer(camp.currentFunds);
-
-        emit CampaignFinalized(_id, _winner, camp.currentFunds);
-    }
-    
-    // Helper to see funds in contract
-    function getBalance() public view returns (uint256) {
-        return address(this).balance;
     }
 }
